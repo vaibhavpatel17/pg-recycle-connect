@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PG ReCycle Connect – Available Items</title>
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="firebase-init.js"></script>
+</head>
+<body>
+  <!-- NAVBAR HEADER -->
+  <header>
+    <div class="navbar">
+      <div class="nav-left">
+        <div class="nav-title">PG ReCycle Connect</div>
+        <div class="nav-subtitle">Browse & Request Items</div>
+      </div>
+      <nav class="nav-links">
+        <a href="index.html" class="nav-link">Add Item</a>
+        <a href="list.html" class="nav-link active">Available Items</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2><span class="emoji">📦</span> Items in circulation</h2>
+      <p class="small">Showing items that are not yet taken.</p>
+
+      <div id="itemsList" class="list-container">
+        <p class="small">Loading items...</p>
+      </div>
+    </section>
+
+    <section class="card secondary">
+      <p class="small">
+        Note: Items marked as <strong>Taken</strong> are hidden from this list automatically.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <p>Anonymous · Low-Waste · Community Sharing</p>
+  </footer>
+
+  <script>
+    const listDiv = document.getElementById('itemsList');
+
+    function statusBadge(status) {
+      let label = 'Available';
+      if (status === 'requested') label = 'Requested';
+      else if (status === 'taken') label = 'Taken';
+      return `<span class="badge badge-${status}">${label}</span>`;
+    }
+
+    db.collection("items")
+      .orderBy("createdAt", "desc")
+      .onSnapshot((snap) => {
+        if (snap.empty) {
+          listDiv.innerHTML = `<p class="small">No items available now.</p>`;
+          return;
+        }
+
+        listDiv.innerHTML = "";
+        snap.forEach(doc => {
+          const item = doc.data();
+          const id = doc.id;
+
+          // hide fully taken items from list
+          if (item.status === 'taken') return;
+
+          const status = item.status || 'available';
+
+          const card = document.createElement("article");
+          card.className = "item-card";
+
+          card.innerHTML = `
+            <div class="item-header">
+              <h3>${item.name || "Unnamed item"}</h3>
+              ${statusBadge(status)}
+            </div>
+            <p class="small">${item.category || "Misc"} · ${item.condition || ""}</p>
+            <p class="small clamp">${item.description || ""}</p>
+            <a class="link small" href="item.html?id=${id}">Open item →</a>
+          `;
+
+          listDiv.appendChild(card);
+        });
+      });
+  </script>
+</body>
+</html>

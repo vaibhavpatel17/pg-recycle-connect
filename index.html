@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PG ReCycle</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs/qrcode.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0b1a2a;
+      color: #fff;
+    }
+
+    nav {
+      padding: 15px 20px;
+      background: #08131f;
+      font-weight: bold;
+    }
+
+    .container {
+      padding: 20px;
+    }
+
+    .card {
+      background: #08131f;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 10px;
+      width: 100%;
+      background: #123;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+<nav>♻ PG ReCycle</nav>
+
+<div class="container">
+
+  <!-- ITEM FROM QR -->
+  <div class="card hidden" id="itemCard">
+    <h3 id="itemName"></h3>
+    <p id="itemDesc"></p>
+    <p><b>Condition:</b> <span id="itemCond"></span></p>
+    <p><b>Location:</b> <span id="itemLoc"></span></p>
+    <button id="requestBtn">Request Item (−5 credits)</button>
+  </div>
+
+  <!-- LOGIN PROMPT -->
+  <div class="card hidden" id="loginCard">
+    <p>Please login to request this item</p>
+    <button id="loginBtn">Login with Google</button>
+  </div>
+
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+  import {
+    getAuth,
+    GoogleAuthProvider,
+    signInWithPopup,
+    onAuthStateChanged
+  } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+  import {
+    getFirestore,
+    doc,
+    getDoc,
+    updateDoc,
+    increment
+  } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDXb4iVJaHgnSpToyxLWfKnczVd48M9-34",
+    authDomain: "pg-recycle-connect2.firebaseapp.com",
+    projectId: "pg-recycle-connect2"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const provider = new GoogleAuthProvider();
+
+  const params = new URLSearchParams(window.location.search);
+  const itemId = params.get("item");
+
+  const itemCard = document.getElementById("itemCard");
+  const loginCard = document.getElementById("loginCard");
+
+  if (!itemId) {
+    document.body.innerHTML = "<h3 style='padding:20px'>Invalid QR</h3>";
+  }
+
+  const itemRef = doc(db, "items", itemId);
+  const snap = await getDoc(itemRef);
+
+  if (!snap.exists()) {
+    document.body.innerHTML = "<h3 style='padding:20px'>Item not found</h3>";
+  }
+
+  const item = snap.data();
+
+  document.getElementById("itemName").innerText = item.itemName;
+  document.getElementById("itemDesc").innerText = item.description;
+  document.getElementById("itemCond").innerText = item.condition;
+  document.getElementById("itemLoc").innerText = item.location;
+
+  itemCard.classList.remove("hidden");
+
+  onAuthStateChanged(auth, user => {
+    if (!user) {
+      loginCard.classList.remove("hidden");
+      document.getElementById("loginBtn").onclick =
+        () => signInWithPopup(auth, provider);
+      return;
+    }
+
+    document.getElementById("requestBtn").onclick = async () => {
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.data().credits < 5) {
+        alert("Not enough credits");
+        return;
+      }
+
+      await updateDoc(userRef, {
+        credits: increment(-5),
+        requests: increment(1)
+      });
+
+      alert("Request successful!");
+    };
+  });
+</script>
+
+</body>
+</html>

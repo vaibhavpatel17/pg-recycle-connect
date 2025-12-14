@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Item Details – PG ReCycle</title>
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="firebase-init.js"></script>
+</head>
+<body>
+  <!-- NAVBAR HEADER -->
+  <header>
+    <div class="navbar">
+      <div class="nav-left">
+        <div class="logo-pill">♻️</div>
+        <div>
+          <div class="nav-title">PG ReCycle Connect</div>
+          <div class="nav-subtitle">Item Details</div>
+        </div>
+      </div>
+      <nav class="nav-links">
+        <a href="index.html" class="nav-link">Add Item</a>
+        <a href="list.html" class="nav-link">Available Items</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- ITEM DETAILS -->
+    <section id="itemSection" class="card"></section>
+
+    <!-- ACTIONS -->
+    <section class="card">
+      <h3 class="small">Actions</h3>
+      <p class="small" id="actionInfo"></p>
+
+      <div class="btn-row">
+        <button id="wantBtn" class="primary-btn">I want this item</button>
+      </div>
+
+      <div class="btn-row">
+        <button id="adminLoginBtn" class="secondary-btn">Admin Login</button>
+      </div>
+
+      <div id="adminActions" class="btn-row hidden">
+        <button id="takenBtn" class="secondary-btn">Mark as taken</button>
+        <button id="deleteBtn" class="danger-btn">Delete</button>
+      </div>
+
+      <p class="small" id="errorLine" style="color:#fca5a5;"></p>
+    </section>
+
+    <!-- ANONYMOUS CHAT -->
+    <section class="card">
+      <h3 class="small"><span class="emoji">💬</span> Anonymous Chat</h3>
+      <p class="small">Residents can drop a short note (no phone numbers) about this item.</p>
+
+      <div id="chatMessages" class="chat-messages">
+        <p class="small">Loading messages…</p>
+      </div>
+
+      <form id="chatForm" class="chat-form">
+        <div class="field-inline">
+          <input id="chatName" type="text" placeholder="Nickname (optional)">
+        </div>
+        <div class="field">
+          <textarea id="chatText" rows="2" maxlength="250"
+                    placeholder="Type a short message, e.g. 'I’ll pick it up at 7 PM' (no phone / insta)"></textarea>
+        </div>
+        <button type="submit" class="primary-btn">Send</button>
+      </form>
+    </section>
+  </main>
+
+  <footer>
+    <p>Respect · Reuse · Reduce Waste</p>
+  </footer>
+
+  <script>
+    // ----- BASIC SETUP -----
+    const params = new URLSearchParams(window.location.search);
+    const itemId = params.get('id');
+
+    const itemSection   = document.getElementById('itemSection');
+    const actionInfo    = document.getElementById('actionInfo');
+    const wantBtn       = document.getElementById('wantBtn');
+    const adminLoginBtn = document.getElementById('adminLoginBtn');
+    const adminActions  = document.getElementById('adminActions');
+    const takenBtn      = document.getElementById('takenBtn');
+    const deleteBtn     = document.getElementById('deleteBtn');
+    const errorLine     = document.getElementById('errorLine');
+
+    const chatMessages  = document.getElementById('chatMessages');
+    const chatForm      = document.getElementById('chatForm');
+    const chatName      = document.getElementById('chatName');
+    const chatText      = document.getElementById('chatText');
+
+    const ADMIN_CODE = "pg1234"; // <--- change this if you want another pin
+
+    if (!itemId) {
+      itemSection.innerHTML = '<h2>Invalid link</h2><p>No item ID provided in URL.</p>';
+      wantBtn.disabled = true;
+      adminLoginBtn.disabled = true;
+      chatForm.classList.add('hidden');
+      chatMessages.innerHTML = '<p class="small">No chat for invalid item.</p>';
+    } else {
+      initItemPage();
+    }
+
+    function statusBadge(status) {
+      let s = status || 'available';
+      return `<span class="badge badge-${s}">${s.toUpperCase()}</span>`;
+    }
+
+    async function initItemPage() {
+      const docRef      = db.collection('items').doc(itemId);
+      const messagesRef = docRef.collection('messages');
+
+      // 1. Live item data
+      docRef.onSnapshot((snap) => {
+        if (!snap.exists) {
+          itemSection.innerHTML = '<h2>Item not found</h2><p>It may have been deleted.</p>';
+          wantBtn.disabled = true;
+          adminLoginBtn.disabled = true;
+          chatForm.classList.add('hidden');
+          chatMessages.innerHTML = '<p class="small">Item deleted. Chat closed.</p>';
+          return;
+        }
+
+        const it = snap.data();
+        const status = it.status || 'available';
+
+        itemSection.innerHTML = `
+          <h2><span class="emoji">🎁</span> ${it.name}</h2>
+          <div class="meta-pills">
+            <span class="meta-pill">${it.category || 'Other'}</span>
+            ${it.condition ? `<span class="meta-pill">${it.condition}</span>` : ''}
+          </div>
+          <p>${it.description || ''}</p>
+          <p><strong>Pickup instructions:</strong> ${it.pickupInstructions}</p>
+          <p class="small">Status: ${statusBadge(status)}</p>
+        `;
+
+        if (status === 'available') {
+          actionInfo.textContent = 'Item is available. You can request it.';
+          wantBtn.disabled = false;
+        } else if (status === 'requested') {
+          actionInfo.textContent = 'Someone already requested this item.';
+          wantBtn.disabled = true;
+        } else {
+          actionInfo.textContent = 'Item is taken / closed.';
+          wantBtn.disabled = true;
+        }
+      });
+
+      // 2. "I want this item"
+      wantBtn.addEventListener('click', async () => {
+        errorLine.textContent = '';
+        try {
+          await docRef.update({ status: 'requested' });
+          await db.collection('stats').doc('global').set({
+            totalRequests: firebase.firestore.FieldValue.increment(1)
+          }, { merge: true });
+          alert('Request sent! Status changed to REQUESTED.');
+        } catch (err) {
+          console.error(err);
+          errorLine.textContent = 'Error: ' + err;
+        }
+      });
+
+      // 3. Admin login + actions
+      let isAdmin = localStorage.getItem('isAdmin') === 'true';
+      if (isAdmin) {
+        adminActions.classList.remove('hidden');
+        adminLoginBtn.classList.add('hidden');
+      }
+
+      adminLoginBtn.addEventListener('click', () => {
+        errorLine.textContent = '';
+        const code = prompt('Enter admin PIN:');
+        if (code === ADMIN_CODE) {
+          isAdmin = true;
+          localStorage.setItem('isAdmin', 'true');
+          adminActions.classList.remove('hidden');
+          adminLoginBtn.classList.add('hidden');
+          alert('Admin unlocked.');
+        } else {
+          errorLine.textContent = 'Wrong admin code.';
+        }
+      });
+
+      takenBtn.addEventListener('click', async () => {
+        errorLine.textContent = '';
+        try {
+          const ok = confirm('Mark this item as TAKEN?');
+          if (!ok) return;
+          await docRef.update({ status: 'taken' });
+          await db.collection('stats').doc('global').set({
+            totalTaken: firebase.firestore.FieldValue.increment(1)
+          }, { merge: true });
+          alert('Item marked as TAKEN.');
+        } catch (err) {
+          console.error(err);
+          errorLine.textContent = 'Error: ' + err;
+        }
+      });
+
+      deleteBtn.addEventListener('click', async () => {
+        errorLine.textContent = '';
+        try {
+          const ok = confirm('Delete this item permanently?');
+          if (!ok) return;
+          await docRef.delete();
+          itemSection.innerHTML = '<h2>Item deleted</h2><p>Return to the Available Items list.</p>';
+          adminActions.classList.add('hidden');
+          wantBtn.disabled = true;
+          chatForm.classList.add('hidden');
+          chatMessages.innerHTML = '<p class="small">Item deleted. Chat closed.</p>';
+          alert('Item deleted.');
+        } catch (err) {
+          console.error(err);
+          errorLine.textContent = 'Error: ' + err;
+        }
+      });
+
+      // 4. Anonymous chat – live messages
+      messagesRef.orderBy('createdAt', 'asc').onSnapshot((snap) => {
+        if (snap.empty) {
+          chatMessages.innerHTML = '<p class="small">No messages yet. Be the first to say something.</p>';
+          return;
+        }
+
+        chatMessages.innerHTML = '';
+        snap.forEach(doc => {
+          const m = doc.data();
+          const name = m.name || 'Anonymous';
+          const text = m.text || '';
+          const time = m.createdAt ? m.createdAt.toDate().toLocaleTimeString() : '';
+
+          const div = document.createElement('div');
+          div.className = 'chat-message';
+          div.innerHTML = `
+            <div class="chat-meta">${name} · <span class="chat-time">${time}</span></div>
+            <div class="chat-text">${text}</div>
+          `;
+          chatMessages.appendChild(div);
+        });
+
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      });
+
+      // 5. Send chat message
+      chatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorLine.textContent = '';
+
+        const text = chatText.value.trim();
+        const name = chatName.value.trim().slice(0, 20) || 'Anon';
+
+        if (!text) return;
+
+        // tiny filter: discourage phone/insta
+        if (/\d{7,}/.test(text.toLowerCase()) || /@/.test(text)) {
+          alert('Please do not share phone numbers or social IDs. Keep it anonymous.');
+          return;
+        }
+
+        try {
+          await messagesRef.add({
+            name,
+            text,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          chatText.value = '';
+        } catch (err) {
+          console.error(err);
+          errorLine.textContent = 'Error sending message: ' + err;
+        }
+      });
+    }
+  </script>
+</body>
+</html>
