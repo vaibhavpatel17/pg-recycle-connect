@@ -5,8 +5,6 @@
   <title>PG ReCycle</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <script src="https://cdn.jsdelivr.net/npm/qrcodejs/qrcode.min.js"></script>
-
   <style>
     body {
       margin: 0;
@@ -34,16 +32,18 @@
 
     button {
       padding: 10px;
-      width: 100%;
       background: #123;
       color: #fff;
       border: none;
       border-radius: 6px;
       cursor: pointer;
+      width: 100%;
       margin-top: 10px;
     }
 
-    .hidden { display: none; }
+    .hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -52,104 +52,74 @@
 
 <div class="container">
 
-  <!-- ITEM FROM QR -->
-  <div class="card hidden" id="itemCard">
+  <!-- HOME PAGE -->
+  <div id="homePage" class="card hidden">
+    <h2>Welcome to PG ReCycle</h2>
+    <p>Scan a QR code on an item to request it.</p>
+  </div>
+
+  <!-- ITEM PAGE (FROM QR) -->
+  <div id="itemPage" class="card hidden">
     <h3 id="itemName"></h3>
     <p id="itemDesc"></p>
     <p><b>Condition:</b> <span id="itemCond"></span></p>
     <p><b>Location:</b> <span id="itemLoc"></span></p>
-    <button id="requestBtn">Request Item (−5 credits)</button>
-  </div>
-
-  <!-- LOGIN PROMPT -->
-  <div class="card hidden" id="loginCard">
-    <p>Please login to request this item</p>
-    <button id="loginBtn">Login with Google</button>
+    <button onclick="requestItem()">Request Item (−5 credits)</button>
   </div>
 
 </div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-  import {
-    getAuth,
-    GoogleAuthProvider,
-    signInWithPopup,
-    onAuthStateChanged
-  } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-  import {
-    getFirestore,
-    doc,
-    getDoc,
-    updateDoc,
-    increment
-  } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
   const firebaseConfig = {
-    apiKey: "AIzaSyDXb4iVJaHgnSpToyxLWfKnczVd48M9-34",
+    apiKey: "YOUR_API_KEY",
     authDomain: "pg-recycle-connect2.firebaseapp.com",
     projectId: "pg-recycle-connect2"
   };
 
   const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
   const db = getFirestore(app);
-  const provider = new GoogleAuthProvider();
 
   const params = new URLSearchParams(window.location.search);
   const itemId = params.get("item");
 
-  const itemCard = document.getElementById("itemCard");
-  const loginCard = document.getElementById("loginCard");
+  const homePage = document.getElementById("homePage");
+  const itemPage = document.getElementById("itemPage");
 
+  // NO ITEM → HOME PAGE
   if (!itemId) {
-    document.body.innerHTML = "<h3 style='padding:20px'>Invalid QR</h3>";
+    homePage.classList.remove("hidden");
+  } 
+  // ITEM PRESENT → LOAD ITEM
+  else {
+    loadItem(itemId);
   }
 
-  const itemRef = doc(db, "items", itemId);
-  const snap = await getDoc(itemRef);
+  async function loadItem(id) {
+    const snap = await getDoc(doc(db, "items", id));
 
-  if (!snap.exists()) {
-    document.body.innerHTML = "<h3 style='padding:20px'>Item not found</h3>";
-  }
-
-  const item = snap.data();
-
-  document.getElementById("itemName").innerText = item.itemName;
-  document.getElementById("itemDesc").innerText = item.description;
-  document.getElementById("itemCond").innerText = item.condition;
-  document.getElementById("itemLoc").innerText = item.location;
-
-  itemCard.classList.remove("hidden");
-
-  onAuthStateChanged(auth, user => {
-    if (!user) {
-      loginCard.classList.remove("hidden");
-      document.getElementById("loginBtn").onclick =
-        () => signInWithPopup(auth, provider);
+    if (!snap.exists()) {
+      homePage.innerHTML = "<h3>Item not found</h3>";
+      homePage.classList.remove("hidden");
       return;
     }
 
-    document.getElementById("requestBtn").onclick = async () => {
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
+    const item = snap.data();
 
-      if (userSnap.data().credits < 5) {
-        alert("Not enough credits");
-        return;
-      }
+    document.getElementById("itemName").innerText = item.itemName;
+    document.getElementById("itemDesc").innerText = item.description;
+    document.getElementById("itemCond").innerText = item.condition;
+    document.getElementById("itemLoc").innerText = item.location;
 
-      await updateDoc(userRef, {
-        credits: increment(-5),
-        requests: increment(1)
-      });
+    itemPage.classList.remove("hidden");
+  }
 
-      alert("Request successful!");
-    };
-  });
-  
+  window.requestItem = function () {
+    alert("Request logic will be added next");
+  };
 </script>
 
 </body>
 </html>
-
