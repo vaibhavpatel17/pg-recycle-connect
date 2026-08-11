@@ -8,5 +8,5 @@ def reversearray():
         temp=arr[i]
         arr[i]=arr[n-1-i]
         arr[n-1-i]=temp
-    print(arr[i])
+    print(arr)
 reversearray()
