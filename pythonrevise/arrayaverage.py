@@ -10,7 +10,7 @@ def avarage():
         if i>0:
             count+=1
             sum=sum+i
-    avg=sum/count      #"//" gives floor diving that is only integer or round off number BUT "/" gives the number 
+    avg=sum/count      #"//" gives floor diving that is only quotient or round off number BUT "/" gives the qotient in decimal form 
 
     print(avg)
 avarage()
